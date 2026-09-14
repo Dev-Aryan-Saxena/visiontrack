@@ -94,7 +94,7 @@ Outputs: Filtered, Edges, Features, Segmentation, Summary
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/{your-username}/visiontrack.git
+git clone https://github.com/Dev-Aryan-Saxena/visiontrack.git
 cd visiontrack
 
 # 2. Create and activate virtual environment
