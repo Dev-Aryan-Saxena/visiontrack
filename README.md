@@ -5,6 +5,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Tests: Passing](https://img.shields.io/badge/tests-15%20passed-brightgreen.svg)](tests/)
+[![Report](https://img.shields.io/badge/report-technical%20specification-blue.svg)](report/project_report.md)
 [![OpenCV](https://img.shields.io/badge/OpenCV-5.0-red.svg)](https://opencv.org/)
 
 VisionTrack is a standalone command-line Computer Vision system that analyzes road scenes from images and videos. It implements a multi-stage visual analysis pipeline combining classical image processing, projective geometry, dynamic background modeling, multi-object tracking, and differential optical flow estimation.
@@ -344,6 +345,9 @@ visiontrack/
 │
 ├── outputs/              # Timestamped run directories
 │   └── .gitkeep
+│
+├── report/               # Technical system report & specifications
+│   └── project_report.md
 │
 └── tests/                # Automated pytest suite
     ├── test_preprocessing.py
