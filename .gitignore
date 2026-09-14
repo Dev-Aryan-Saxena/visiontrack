@@ -1,0 +1,36 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# IDE and Editor artifacts
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Operating System files
+.DS_Store
+Thumbs.db
+
+# Output directory (preserve folder, ignore dynamic run experiments)
+outputs/*
+!outputs/.gitkeep
+
+# Large pretrained weights (downloaded on-demand)
+*.pt
+*.onnx
+*.weights
+*.caffemodel
+yolov8*.pt
