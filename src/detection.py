@@ -130,7 +130,12 @@ class ObjectDetector:
                motion_regions: Optional[List[Dict[str, Any]]] = None) -> List[Detection]:
         """Detects objects in the input frame using the active backend."""
         if self.active_method == "yolo" and self.yolo_model is not None:
-            return self._detect_yolo(frame)
+            dets = self._detect_yolo(frame)
+            # If auto mode was requested and YOLO found nothing (e.g. in synthetic or non-COCO scenes),
+            # gracefully fall back to classical motion-blob detection
+            if len(dets) > 0 or self.requested_method == "yolo":
+                return dets
+            return self._detect_motion_blob(frame, motion_regions)
         elif self.active_method == "hog_svm":
             return self._detect_hog_svm(frame)
         else:
