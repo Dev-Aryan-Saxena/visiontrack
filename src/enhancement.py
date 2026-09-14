@@ -1,9 +1,5 @@
-"""Module: enhancement.py
-Computer Vision Syllabus Mapping:
-- Module 1: Digital Image Formation and Low Level Processing (Image Enhancement,
-  Histogram Processing, Contrast Enhancement).
+"""Image enhancement and histogram processing.
 
-Description:
 Implements intensity transformations, global and local adaptive histogram equalization (CLAHE),
 power-law (gamma) corrections, linear contrast stretching, and histogram distribution analysis.
 """

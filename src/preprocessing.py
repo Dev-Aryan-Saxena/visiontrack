@@ -1,12 +1,8 @@
-"""Module: preprocessing.py
-Computer Vision Syllabus Mapping:
-- Module 1: Digital Image Formation and Low Level Processing (Fundamentals of Image Formation,
-  Geometric Transformations, Convolution and Filtering, Noise Reduction and Restoration).
+"""Image preprocessing utilities.
 
-Description:
-Provides foundational low-level image processing operations including color space conversions,
-linear and non-linear spatial convolution filters, geometric transformations, and noise injection
-for restoration benchmarking.
+Provides low-level image processing operations including color space conversions,
+linear Gaussian and non-linear median spatial convolution filters, bilateral edge-preserving
+smoothing, geometric affine transformations, and noise simulation utilities.
 """
 
 from typing import Tuple, Optional
@@ -133,7 +129,7 @@ def apply_affine_transform(image: np.ndarray, angle_deg: float = 0.0, scale: flo
 
     Algorithm Explanation:
     1. What it does: Transforms coordinates via x' = A x + t, preserving parallelism of straight lines.
-    2. Why it is used: Demonstrates Module 1 affine and Euclidean geometric transformation fundamentals.
+    2. Why it is used: Corrects camera roll, scales imagery, and models planar rigid-body transformations.
     3. Input: Image, rotation angle in degrees, scaling factor, translation vector (tx, ty).
     4. Output: Affine transformed image.
     """

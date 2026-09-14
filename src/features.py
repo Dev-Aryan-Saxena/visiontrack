@@ -1,13 +1,9 @@
-"""Module: features.py
-Computer Vision Syllabus Mapping:
-- Module 3: Feature Extraction And Image Segmentation (Edges - Canny, LOG, DOG;
-  Line detectors - Hough Transform; Corners - Harris; Descriptors - HOG, SIFT).
+"""Feature extraction utilities for edges, lines, corners, and descriptors.
 
-Description:
-Implements classical low-level and mid-level feature extraction techniques including
-gradient-based edge detection (Canny, LoG, DoG), parametric lane/line detection (Hough),
-second-moment corner detection (Harris), dense gradient descriptors (HOG), and scale-space
-invariant keypoints (SIFT).
+Implements classical feature extraction techniques including gradient-based edge
+detection (Canny, LoG, DoG), parametric lane and line detection (Hough Transform),
+second-moment corner detection (Harris), dense gradient descriptors (HOG), and
+scale-space invariant keypoints (SIFT).
 """
 
 from typing import Tuple, List, Dict, Any, Optional
@@ -44,7 +40,7 @@ def detect_laplacian_of_gaussian(gray_image: np.ndarray, ksize: int = 5, sigma: 
 
     Algorithm Explanation:
     1. What it does: Computes the second spatial derivative of the Gaussian-smoothed image and locates zero-crossings.
-    2. Why it is used: Demonstrates isotropic scale-space edge detection from Module 3.
+    2. Why it is used: Localizes rapid intensity transitions via second spatial derivative zero-crossings.
     3. Mathematical Basis: nabla^2 G(x, y) = ((x^2 + y^2 - 2*sigma^2) / sigma^4) * G(x, y).
     """
     if len(gray_image.shape) != 2:

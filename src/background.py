@@ -1,13 +1,9 @@
-"""Module: background.py
-Computer Vision Syllabus Mapping:
-- Module 4: Pattern Analysis and Motion Analysis (Background Subtraction and Modeling,
-  Mixture of Gaussians, Spatio-Temporal Analysis).
+"""Dynamic background modeling and foreground extraction.
 
-Description:
-Implements classical dynamic background modeling using:
+Implements background subtraction algorithms and morphological post-processing:
 1. Gaussian Mixture-based Background/Foreground Segmentation (MOG2).
 2. K-Nearest Neighbors (KNN) Background Subtraction.
-3. Morphological post-processing (Erosion, Dilation, Opening, Closing) for noise elimination.
+3. Morphological filtering (Erosion, Dilation, Opening, Closing) for noise elimination.
 4. Moving contour extraction and minimum bounding rectangle filtering.
 """
 

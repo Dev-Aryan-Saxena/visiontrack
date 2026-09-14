@@ -1,10 +1,6 @@
-"""Module: tracking.py
-Computer Vision Syllabus Mapping:
-- Module 4: Pattern Analysis and Motion Analysis (Object Tracking, Spatio-Temporal
-  Association, Motion Parameter Estimation).
+"""Multi-object tracking and kinematic parameter estimation.
 
-Description:
-Implements a clean, robust multi-object tracker combining:
+Implements a multi-object tracker combining:
 1. Centroid Euclidean distance matching.
 2. Intersection-over-Union (IoU) spatial overlap association.
 3. Persistent track lifecycle management (registration, active tracking, occlusion grace period, deregistration).

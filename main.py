@@ -1,25 +1,23 @@
 #!/usr/bin/env python3
-"""VisionTrack: Computer Vision-Based Road Scene Analysis and Motion Tracking System.
+"""VisionTrack: Road Scene Analysis and Motion Tracking System.
 
-Academic Computer Vision project demonstrating:
-- Digital image formation, low-level filtering, geometric transformations (Module 1)
-- Frequency-domain Fourier analysis and filtering (Module 1)
-- Histogram processing and contrast enhancement (Module 1)
-- Epipolar geometry and binocular stereopsis depth estimation (Module 2)
-- Projective transformations, homography, bird's-eye view mapping (Module 1 & 2)
-- Edge detection, Hough transform lines, Harris corners, HOG, SIFT (Module 3)
-- Classical segmentation: Otsu thresholding, K-Means clustering, Region Growing, Mean-Shift (Module 3 & 4)
-- Dynamic background modeling (MOG2, KNN) with morphological filtering (Module 4)
-- Road-scene object detection (YOLO, HOG+SVM, Motion-blob) (Module 3 & 4)
-- Multi-object tracking with persistent IDs and motion parameter estimation (Module 4)
-- Sparse Lucas-Kanade and dense Farneback optical flow (Module 4)
+A command-line Computer Vision application for road scene analysis from images and videos.
 
-Usage examples:
-    python main.py --mode image --input data/sample_road.jpg
-    python main.py --mode image --input data/sample_road.jpg --features harris --segment kmeans
-    python main.py --mode video --input data/sample_traffic.mp4
-    python main.py --mode stereo --left data/left_stereo.jpg --right data/right_stereo.jpg
+Features:
+- Image preprocessing, enhancement, edge detection, feature extraction, and segmentation.
+- Video analysis with dynamic background subtraction, lightweight object detection,
+  multi-object tracking with persistent IDs, and differential optical flow.
+- Perspective transformation utility for bird's-eye view road mapping.
+- Optional binocular stereo disparity and depth estimation.
+
+Usage:
+    python main.py --help
     python main.py --generate-samples
+    python main.py --mode image --input data/sample_road.jpg
+    python main.py --mode image --input data/sample_road.jpg --perspective
+    python main.py --mode video --input data/sample_traffic.mp4
+    python main.py --mode video --input data/sample_traffic.mp4 --optical-flow dense
+    python main.py --mode stereo --left data/left_stereo.jpg --right data/right_stereo.jpg
 """
 
 import os
@@ -29,26 +27,18 @@ import time
 from typing import Dict, Any, List, Optional
 import cv2
 import numpy as np
-import matplotlib
-matplotlib.use("Agg")  # Strictly headless backend
-import matplotlib.pyplot as plt
 
-# Internal VisionTrack modules
+# VisionTrack modules
 from src.preprocessing import (
     to_grayscale, apply_gaussian_filter, apply_median_filter,
     apply_bilateral_filter, resize_image
 )
 from src.enhancement import (
-    equalize_histogram_gray, equalize_histogram_color,
-    apply_clahe, save_histogram_plot, compute_histogram_metrics
-)
-from src.frequency import (
-    compute_fft, apply_frequency_filter, save_fourier_analysis_plot
+    equalize_histogram_gray, apply_clahe, compute_histogram_metrics
 )
 from src.features import (
-    detect_canny_edges, detect_laplacian_of_gaussian,
-    detect_hough_lines, detect_harris_corners,
-    extract_hog_features, extract_sift_features
+    detect_canny_edges, detect_hough_lines, detect_harris_corners,
+    extract_hog_features
 )
 from src.segmentation import (
     segment_by_threshold, segment_by_kmeans,
@@ -69,7 +59,7 @@ from src.utils import (
 
 
 def run_image_pipeline(args: argparse.Namespace) -> int:
-    """Executes the complete classical computer vision image analysis pipeline."""
+    """Executes the image analysis pipeline and saves essential visual outputs."""
     input_path = args.input
     if not input_path or not os.path.isfile(input_path):
         print(f"ERROR: Input image file '{input_path}' was not found.")
@@ -84,11 +74,11 @@ def run_image_pipeline(args: argparse.Namespace) -> int:
         img_bgr = resize_image(img_bgr, target_width=args.resize)
 
     h, w = img_bgr.shape[:2]
-    exp_dir = create_experiment_dir(base_output_dir=args.output_dir, mode="image")
+    out_dir = create_experiment_dir(base_output_dir=args.output_dir, mode="image")
     print(f"\n=======================================================")
-    print(f"VisionTrack: Image Scene Analysis Pipeline")
+    print(f"VisionTrack: Image Scene Analysis")
     print(f"Input: {input_path} ({w}x{h})")
-    print(f"Output Directory: {exp_dir}")
+    print(f"Output Directory: {out_dir}")
     print(f"=======================================================\n")
 
     summary: Dict[str, Any] = {
@@ -96,125 +86,86 @@ def run_image_pipeline(args: argparse.Namespace) -> int:
         "mode": "image",
         "input_file": os.path.abspath(input_path),
         "resolution": {"width": w, "height": h},
-        "selected_features": args.features,
         "selected_segmentation": args.segment
     }
 
     # 1. Original Image
-    cv2.imwrite(os.path.join(exp_dir, "01_original.jpg"), img_bgr)
+    print("[1/5] Loading original input image...")
+    cv2.imwrite(os.path.join(out_dir, "original.jpg"), img_bgr)
 
-    # 2. Grayscale conversion (Module 1)
-    print("[1/7] Performing grayscale conversion (ITU-R BT.601)...")
+    # 2. Preprocessing & Enhancement
+    print("[2/5] Applying preprocessing and contrast enhancement...")
     gray = to_grayscale(img_bgr)
-    cv2.imwrite(os.path.join(exp_dir, "02_grayscale.jpg"), gray)
+    smoothed = apply_gaussian_filter(gray, kernel_size=5, sigma=1.2)
+    enhanced = apply_clahe(smoothed, clip_limit=2.5)
+    cv2.imwrite(os.path.join(out_dir, "filtered.jpg"), enhanced)
 
-    # 3. Spatial Filtering: Gaussian & Median (Module 1)
-    print("[2/7] Applying low-level convolution filters (Gaussian, Median, Bilateral)...")
-    gaussian = apply_gaussian_filter(gray, kernel_size=5, sigma=1.2)
-    median = apply_median_filter(gray, kernel_size=5)
-    bilateral = apply_bilateral_filter(img_bgr, diameter=9, sigma_color=75, sigma_space=75)
-    cv2.imwrite(os.path.join(exp_dir, "03_filtered_gaussian.jpg"), gaussian)
-    cv2.imwrite(os.path.join(exp_dir, "04_filtered_median.jpg"), median)
-    cv2.imwrite(os.path.join(exp_dir, "05_filtered_bilateral.jpg"), bilateral)
+    summary["histogram_metrics"] = compute_histogram_metrics(gray)
 
-    # 4. Enhancement & Histogram Processing (Module 1)
-    print("[3/7] Performing contrast enhancement & histogram equalization...")
-    equalized_gray = equalize_histogram_gray(gray)
-    equalized_color = equalize_histogram_color(img_bgr)
-    clahe_gray = apply_clahe(gray, clip_limit=2.5)
-    cv2.imwrite(os.path.join(exp_dir, "06_enhanced_hist_equalized.jpg"), equalized_gray)
-    cv2.imwrite(os.path.join(exp_dir, "07_enhanced_color_equalized.jpg"), equalized_color)
-    cv2.imwrite(os.path.join(exp_dir, "08_enhanced_clahe.jpg"), clahe_gray)
+    # 3. Edge Detection
+    print("[3/5] Performing Canny edge detection...")
+    edges = detect_canny_edges(smoothed, low_threshold=args.canny_low, high_threshold=args.canny_high)
+    cv2.imwrite(os.path.join(out_dir, "edges.jpg"), edges)
 
-    hist_metrics = compute_histogram_metrics(gray)
-    summary["histogram_metrics"] = hist_metrics
-    save_histogram_plot(gray, equalized_gray, os.path.join(exp_dir, "09_histogram_distribution.png"))
+    # 4. Feature Detection (Hough lines & Harris corners combined on visual frame)
+    print(f"[4/5] Extracting geometric features (Hough lines & Harris corners)...")
+    feature_vis = img_bgr.copy()
 
-    # 5. Frequency Domain Analysis (Module 1 Fourier Transform)
-    print("[4/7] Computing 2D Discrete Fourier Transform & frequency filtering...")
-    save_fourier_analysis_plot(gray, os.path.join(exp_dir, "10_fourier_analysis.png"), cutoff_d0=35.0)
+    # Hough Lines
+    _, lines = detect_hough_lines(gray, canny_low=args.canny_low, canny_high=args.canny_high)
+    for x1, y1, x2, y2 in lines:
+        cv2.line(feature_vis, (x1, y1), (x2, y2), (0, 255, 0), 2, cv2.LINE_AA)
 
-    # 6. Feature Extraction (Module 3)
-    print(f"[5/7] Extracting computer vision features (Requested: {args.features})...")
-    edges_canny = detect_canny_edges(gaussian, low_threshold=args.canny_low, high_threshold=args.canny_high)
-    cv2.imwrite(os.path.join(exp_dir, "11_features_canny_edges.jpg"), edges_canny)
+    # Harris Corners
+    _, _, num_corners = detect_harris_corners(gray)
+    gray_float = np.float32(gray)
+    dst = cv2.cornerHarris(gray_float, blockSize=3, ksize=3, k=0.04)
+    dst_dilated = cv2.dilate(dst, None)
+    thresh = 0.01 * dst.max() if dst.max() > 0 else 0
+    corner_mask = (dst > thresh) & (dst == dst_dilated)
+    y_coords, x_coords = np.where(corner_mask)
+    for cx, cy in zip(x_coords, y_coords):
+        cv2.circle(feature_vis, (int(cx), int(cy)), 4, (0, 0, 255), -1, cv2.LINE_AA)
 
-    edges_log = detect_laplacian_of_gaussian(gray, ksize=5, sigma=1.0)
-    cv2.imwrite(os.path.join(exp_dir, "12_features_log_edges.jpg"), edges_log)
+    cv2.imwrite(os.path.join(out_dir, "features.jpg"), feature_vis)
+    summary["hough_lines_count"] = len(lines)
+    summary["harris_corners_count"] = int(num_corners)
 
-    hough_vis, lines = detect_hough_lines(gray, canny_low=args.canny_low, canny_high=args.canny_high)
-    cv2.imwrite(os.path.join(exp_dir, "13_features_hough_lines.jpg"), hough_vis)
-    summary["hough_lines_detected"] = len(lines)
+    # 5. Image Segmentation
+    print(f"[5/5] Executing image segmentation (Method: {args.segment})...")
+    if args.segment == "kmeans":
+        segmented_img, _ = segment_by_kmeans(img_bgr, k=args.kmeans_k)
+    elif args.segment == "otsu":
+        segmented_img, otsu_t = segment_by_threshold(gray, method="otsu")
+        summary["otsu_threshold"] = otsu_t
+    elif args.segment == "adaptive":
+        segmented_img, _ = segment_by_threshold(gray, method="adaptive")
+    elif args.segment == "region_growing":
+        segmented_img = segment_by_region_growing(gray)
+    elif args.segment == "meanshift":
+        segmented_img = segment_by_mean_shift(img_bgr)
+    else:
+        segmented_img, _ = segment_by_kmeans(img_bgr, k=args.kmeans_k)
 
-    harris_vis, _, num_corners = detect_harris_corners(gray)
-    cv2.imwrite(os.path.join(exp_dir, "14_features_harris_corners.jpg"), harris_vis)
-    summary["harris_corners_detected"] = num_corners
+    cv2.imwrite(os.path.join(out_dir, "segmentation.jpg"), segmented_img)
 
-    hog_vec, hog_vis = extract_hog_features(gray)
-    cv2.imwrite(os.path.join(exp_dir, "15_features_hog_gradient_field.jpg"), hog_vis)
-    summary["hog_vector_dimension"] = len(hog_vec)
-
-    sift_vis, sift_kps, _ = extract_sift_features(gray)
-    cv2.imwrite(os.path.join(exp_dir, "16_features_sift_keypoints.jpg"), sift_vis)
-    summary["sift_keypoints_detected"] = len(sift_kps)
-
-    # 7. Image Segmentation (Module 3 & 4)
-    print(f"[6/7] Executing segmentation algorithms (Selected: {args.segment})...")
-    seg_otsu, otsu_val = segment_by_threshold(gray, method="otsu")
-    seg_adaptive, _ = segment_by_threshold(gray, method="adaptive")
-    seg_kmeans, _ = segment_by_kmeans(img_bgr, k=args.kmeans_k)
-    seg_region = segment_by_region_growing(gray)
-    seg_meanshift = segment_by_mean_shift(img_bgr)
-
-    cv2.imwrite(os.path.join(exp_dir, "17_segmentation_otsu.jpg"), seg_otsu)
-    cv2.imwrite(os.path.join(exp_dir, "18_segmentation_adaptive.jpg"), seg_adaptive)
-    cv2.imwrite(os.path.join(exp_dir, "19_segmentation_kmeans.jpg"), seg_kmeans)
-    cv2.imwrite(os.path.join(exp_dir, "20_segmentation_region_growing.jpg"), seg_region)
-    cv2.imwrite(os.path.join(exp_dir, "21_segmentation_meanshift.jpg"), seg_meanshift)
-
-    summary["segmentation_otsu_threshold"] = otsu_val
-
-    # Comparison figure for all 4 segmentation methods
-    fig, axes = plt.subplots(2, 2, figsize=(10, 8))
-    axes[0, 0].imshow(seg_otsu, cmap="gray")
-    axes[0, 0].set_title(f"Otsu Threshold (T={otsu_val:.1f})")
-    axes[0, 0].axis("off")
-
-    axes[0, 1].imshow(cv2.cvtColor(seg_kmeans, cv2.COLOR_BGR2RGB))
-    axes[0, 1].set_title(f"K-Means Clustering (K={args.kmeans_k})")
-    axes[0, 1].axis("off")
-
-    axes[1, 0].imshow(seg_region, cmap="gray")
-    axes[1, 0].set_title("Seeded Region Growing")
-    axes[1, 0].axis("off")
-
-    axes[1, 1].imshow(cv2.cvtColor(seg_meanshift, cv2.COLOR_BGR2RGB))
-    axes[1, 1].set_title("Mean Shift Segmentation")
-    axes[1, 1].axis("off")
-
-    plt.tight_layout()
-    fig.savefig(os.path.join(exp_dir, "22_segmentation_comparison.png"), dpi=150)
-    plt.close(fig)
-
-    # 8. Perspective Transformation / Bird's-Eye View (Optional / Module 1 & 2)
+    # 6. Perspective Transformation (Optional Bird's-Eye View)
     if args.perspective:
-        print("[7/7] Computing Bird's-Eye View perspective transformation...")
+        print("[*] Computing bird's-eye view perspective transformation...")
         pt = PerspectiveTransformer()
         bev_img = pt.warp_to_birds_eye(img_bgr)
-        roi_vis = pt.draw_roi_on_image(img_bgr)
-        cv2.imwrite(os.path.join(exp_dir, "23_perspective_road_roi.jpg"), roi_vis)
-        cv2.imwrite(os.path.join(exp_dir, "24_perspective_birds_eye_view.jpg"), bev_img)
-        summary["perspective_transform_applied"] = True
+        cv2.imwrite(os.path.join(out_dir, "birds_eye.jpg"), bev_img)
+        summary["birds_eye_view_generated"] = True
 
     # Save summary JSON
-    save_summary_json(summary, os.path.join(exp_dir, "summary.json"))
-    print(f"\n[VisionTrack] Image analysis pipeline completed successfully!")
-    print(f"[VisionTrack] All visual artifacts and summary.json saved to: {exp_dir}\n")
+    save_summary_json(summary, os.path.join(out_dir, "summary.json"))
+    print(f"\n[VisionTrack] Image analysis completed successfully!")
+    print(f"[VisionTrack] Outputs saved to: {out_dir}\n")
     return 0
 
 
 def run_video_pipeline(args: argparse.Namespace) -> int:
-    """Executes the complete video analysis, motion tracking, and optical flow pipeline."""
+    """Executes the video analysis, tracking, and optical flow pipeline."""
     input_path = args.input
     if not input_path or not os.path.isfile(input_path):
         print(f"ERROR: Input video file '{input_path}' was not found.")
@@ -239,19 +190,17 @@ def run_video_pipeline(args: argparse.Namespace) -> int:
     else:
         proc_w, proc_h = orig_w, orig_h
 
-    exp_dir = create_experiment_dir(base_output_dir=args.output_dir, mode="video")
-    sample_frames_dir = os.path.join(exp_dir, "sample_frames")
-    os.makedirs(sample_frames_dir, exist_ok=True)
+    out_dir = create_experiment_dir(base_output_dir=args.output_dir, mode="video")
 
     print(f"\n=======================================================")
-    print(f"VisionTrack: Video Scene Analysis & Tracking Pipeline")
-    print(f"Input Video: {input_path}")
-    print(f"Total Frames: {total_frames} | FPS: {fps:.2f} | Resolution: {proc_w}x{proc_h}")
-    print(f"Detector Engine: {args.detector} | Optical Flow: {args.optical_flow}")
-    print(f"Output Directory: {exp_dir}")
+    print(f"VisionTrack: Video Analysis & Tracking")
+    print(f"Input: {input_path}")
+    print(f"Frames: {total_frames} | FPS: {fps:.2f} | Resolution: {proc_w}x{proc_h}")
+    print(f"Detector: {args.detector} | Optical Flow: {args.optical_flow}")
+    print(f"Output Directory: {out_dir}")
     print(f"=======================================================\n")
 
-    # Initialize processing sub-systems
+    # Initialize sub-systems
     bg_subtractor = BackgroundSubtractor(
         method=args.bg_method, history=args.bg_history,
         var_threshold=args.bg_var_threshold, detect_shadows=True,
@@ -268,27 +217,24 @@ def run_video_pipeline(args: argparse.Namespace) -> int:
     )
 
     # Initialize video writers
+    annotated_video_path = os.path.join(out_dir, "annotated_video.mp4")
+    flow_video_path = os.path.join(out_dir, "optical_flow.mp4")
+
     annotated_writer = None
     flow_writer = None
-    mask_writer = None
-
-    annotated_video_path = os.path.join(exp_dir, "annotated_video.mp4")
-    flow_video_path = os.path.join(exp_dir, "optical_flow.mp4")
-    mask_video_path = os.path.join(exp_dir, "foreground_mask.mp4")
 
     if args.save_video:
         annotated_writer = create_video_writer(annotated_video_path, fps, (proc_w, proc_h))
         flow_writer = create_video_writer(flow_video_path, fps, (proc_w, proc_h))
-        mask_writer = create_video_writer(mask_video_path, fps, (proc_w, proc_h))
 
     tracking_records: List[Dict[str, Any]] = []
     frame_idx = 0
     processed_count = 0
     motion_speeds: List[float] = []
     optical_flow_mags: List[float] = []
-    max_frames_to_process = args.max_frames if args.max_frames > 0 else total_frames
+    max_frames = args.max_frames if args.max_frames > 0 else total_frames
 
-    print("Processing video frames...")
+    print("Processing video...")
 
     try:
         while True:
@@ -300,7 +246,7 @@ def run_video_pipeline(args: argparse.Namespace) -> int:
             if args.max_frames > 0 and frame_idx > args.max_frames:
                 break
 
-            # Frame skipping for computational throughput
+            # Frame skipping
             if frame_idx % args.frame_skip != 0:
                 continue
 
@@ -308,17 +254,17 @@ def run_video_pipeline(args: argparse.Namespace) -> int:
             if args.resize:
                 frame = cv2.resize(frame, (proc_w, proc_h), interpolation=cv2.INTER_AREA)
 
-            # 1. Background Subtraction & Morphological Filtering (Module 4)
+            # 1. Background subtraction & morphological cleaning
             raw_mask, cleaned_mask = bg_subtractor.apply(frame)
             moving_regions = bg_subtractor.extract_moving_regions(cleaned_mask)
 
-            # 2. Object Detection (Module 3 & 4)
+            # 2. Object detection
             detections = detector.detect(frame, motion_regions=moving_regions)
 
-            # 3. Multi-Object Tracking & Motion Parameter Estimation (Module 4)
+            # 3. Tracking & motion estimation
             tracked_objects = tracker.update(detections, frame_idx)
 
-            # Record tracking parameters
+            # Record tracking data
             current_frame_speeds = []
             for obj in tracked_objects:
                 current_frame_speeds.append(obj.instantaneous_speed)
@@ -341,39 +287,27 @@ def run_video_pipeline(args: argparse.Namespace) -> int:
             avg_motion_speed = float(np.mean(current_frame_speeds)) if current_frame_speeds else 0.0
             motion_speeds.append(avg_motion_speed)
 
-            # 4. Optical Flow Analysis (Module 4)
+            # 4. Optical flow analysis
             flow_vis, avg_flow_mag, _ = flow_analyzer.process_frame(frame)
             optical_flow_mags.append(avg_flow_mag)
 
-            # 5. Composite Visualizations & Headless Writing
+            # 5. Composite annotated frame
             annotated_frame = draw_annotated_frame(
                 frame, tracked_objects, frame_idx, total_frames,
                 avg_motion_speed, avg_flow_mag
             )
 
-            # Mask 3-channel visualization
-            cleaned_mask_bgr = cv2.cvtColor(cleaned_mask, cv2.COLOR_GRAY2BGR)
-
             if annotated_writer is not None:
                 annotated_writer.write(annotated_frame)
             if flow_writer is not None:
                 flow_writer.write(flow_vis)
-            if mask_writer is not None:
-                mask_writer.write(cleaned_mask_bgr)
 
-            # Periodically save keyframe snapshots (e.g. every 25 processed frames)
-            if processed_count % 25 == 1 or frame_idx == max_frames_to_process:
-                cv2.imwrite(os.path.join(sample_frames_dir, f"frame_{frame_idx:05d}_annotated.jpg"), annotated_frame)
-                cv2.imwrite(os.path.join(sample_frames_dir, f"frame_{frame_idx:05d}_mask.jpg"), cleaned_mask)
-                cv2.imwrite(os.path.join(sample_frames_dir, f"frame_{frame_idx:05d}_optical_flow.jpg"), flow_vis)
-
-            # Console Progress reporting
-            if processed_count % 15 == 0 or frame_idx == max_frames_to_process:
+            # Terminal progress reporting
+            if processed_count % 15 == 0 or frame_idx == max_frames:
                 print(f"Frame: {frame_idx:4d}/{total_frames} | "
-                      f"Detected: {len(detections):2d} | "
                       f"Tracked: {len(tracked_objects):2d} | "
-                      f"Mean Motion: {avg_motion_speed:5.2f} px/f | "
-                      f"Flow Mag: {avg_flow_mag:5.2f}")
+                      f"Motion: {avg_motion_speed:5.2f} px/frame | "
+                      f"Optical Flow: {avg_flow_mag:5.2f} px/frame")
 
     finally:
         cap.release()
@@ -381,42 +315,38 @@ def run_video_pipeline(args: argparse.Namespace) -> int:
             annotated_writer.release()
         if flow_writer is not None:
             flow_writer.release()
-        if mask_writer is not None:
-            mask_writer.release()
 
     # Save CSV tracking data
-    csv_path = os.path.join(exp_dir, "tracking.csv")
+    csv_path = os.path.join(out_dir, "tracking.csv")
     save_tracking_csv(tracking_records, csv_path)
 
-    # Save JSON summary report
+    # Save summary JSON
     summary = {
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
         "mode": "video",
         "input_file": os.path.abspath(input_path),
         "total_video_frames": total_frames,
         "processed_frames": processed_count,
-        "video_fps": round(fps, 2),
+        "fps": round(fps, 2),
         "resolution": {"width": proc_w, "height": proc_h},
-        "detector_engine": detector.active_method,
-        "optical_flow_method": args.optical_flow,
-        "total_unique_objects_tracked": tracker.next_object_id - 1,
-        "overall_average_pixel_motion_speed": round(float(np.mean(motion_speeds)) if motion_speeds else 0.0, 3),
-        "overall_average_optical_flow_magnitude": round(float(np.mean(optical_flow_mags)) if optical_flow_mags else 0.0, 3),
-        "motion_unit_disclaimer": "Pixel motion and approximate speed are reported in pixel/frame units. Metric speed (km/h) requires extrinsic camera calibration.",
+        "detector": detector.active_method,
+        "optical_flow": args.optical_flow,
+        "total_objects_tracked": tracker.next_object_id - 1,
+        "average_motion_speed_px_per_frame": round(float(np.mean(motion_speeds)) if motion_speeds else 0.0, 3),
+        "average_optical_flow_magnitude": round(float(np.mean(optical_flow_mags)) if optical_flow_mags else 0.0, 3),
+        "speed_units": "px/frame (uncalibrated camera)",
         "output_files": {
             "annotated_video": os.path.abspath(annotated_video_path) if args.save_video else None,
             "optical_flow_video": os.path.abspath(flow_video_path) if args.save_video else None,
-            "mask_video": os.path.abspath(mask_video_path) if args.save_video else None,
-            "tracking_csv": os.path.abspath(csv_path),
-            "sample_frames_dir": os.path.abspath(sample_frames_dir)
+            "tracking_csv": os.path.abspath(csv_path)
         }
     }
-    save_summary_json(summary, os.path.join(exp_dir, "summary.json"))
+    save_summary_json(summary, os.path.join(out_dir, "summary.json"))
 
     print(f"\n[VisionTrack] Video processing finished successfully!")
     print(f"[VisionTrack] Total Unique Objects Tracked: {tracker.next_object_id - 1}")
     print(f"[VisionTrack] Tracking Data: {csv_path}")
-    print(f"[VisionTrack] Experiment Summary: {os.path.join(exp_dir, 'summary.json')}\n")
+    print(f"[VisionTrack] Summary Report: {os.path.join(out_dir, 'summary.json')}\n")
     return 0
 
 
@@ -439,12 +369,12 @@ def run_stereo_pipeline(args: argparse.Namespace) -> int:
         print("ERROR: Failed to decode stereo image pair.")
         return 1
 
-    exp_dir = create_experiment_dir(base_output_dir=args.output_dir, mode="stereo")
+    out_dir = create_experiment_dir(base_output_dir=args.output_dir, mode="stereo")
     print(f"\n=======================================================")
-    print(f"VisionTrack: Stereo Depth Estimation (Module 2)")
+    print(f"VisionTrack: Stereo Depth Estimation")
     print(f"Left Image: {left_path} | Right Image: {right_path}")
-    print(f"Matcher Method: {args.stereo_method}")
-    print(f"Output Directory: {exp_dir}")
+    print(f"Matcher: {args.stereo_method.upper()}")
+    print(f"Output Directory: {out_dir}")
     print(f"=======================================================\n")
 
     estimator = StereoDepthEstimator(
@@ -454,138 +384,114 @@ def run_stereo_pipeline(args: argparse.Namespace) -> int:
 
     norm_disp, depth_vis, metrics = estimator.compute_disparity(left_img, right_img)
 
-    cv2.imwrite(os.path.join(exp_dir, "01_left_rectified.jpg"), left_img)
-    cv2.imwrite(os.path.join(exp_dir, "02_right_rectified.jpg"), right_img)
-    cv2.imwrite(os.path.join(exp_dir, "03_disparity_map.png"), norm_disp)
-    cv2.imwrite(os.path.join(exp_dir, "04_depth_visualization.png"), depth_vis)
+    cv2.imwrite(os.path.join(out_dir, "disparity_map.png"), norm_disp)
+    cv2.imwrite(os.path.join(out_dir, "depth_map.png"), depth_vis)
 
-    # Save side-by-side comparison figure
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-    axes[0].imshow(cv2.cvtColor(left_img, cv2.COLOR_BGR2RGB))
-    axes[0].set_title("Left Rectified View")
-    axes[0].axis("off")
-
-    axes[1].imshow(norm_disp, cmap="gray")
-    axes[1].set_title(f"Disparity Map ({args.stereo_method.upper()})")
-    axes[1].axis("off")
-
-    axes[2].imshow(cv2.cvtColor(depth_vis, cv2.COLOR_BGR2RGB))
-    axes[2].set_title("Relative Depth Map (Inferno)")
-    axes[2].axis("off")
-
-    plt.tight_layout()
-    fig.savefig(os.path.join(exp_dir, "05_stereo_comparison.png"), dpi=150)
-    plt.close(fig)
-
-    save_summary_json(metrics, os.path.join(exp_dir, "summary.json"))
-    print(f"[VisionTrack] Disparity and depth map saved to: {exp_dir}\n")
+    save_summary_json(metrics, os.path.join(out_dir, "summary.json"))
+    print(f"[VisionTrack] Disparity and depth map saved to: {out_dir}\n")
     return 0
 
 
 def generate_samples_command() -> int:
-    """Generates synthetic road scene images, videos, and stereo pairs in data/."""
+    """Generates synthetic road scene media in data/ for testing."""
     data_dir = "data"
     os.makedirs(data_dir, exist_ok=True)
 
-    img_path = os.path.join(data_dir, "sample_road.jpg")
+    img_path = os.path.join(data_dir, "sample_image.jpg")
     vid_path = os.path.join(data_dir, "sample_traffic.mp4")
-    left_path = os.path.join(data_dir, "left_stereo.jpg")
-    right_path = os.path.join(data_dir, "right_stereo.jpg")
+    left_path = os.path.join(data_dir, "left.jpg")
+    right_path = os.path.join(data_dir, "right.jpg")
 
-    print(f"\n[Generator] Creating synthetic test road scene image: {img_path}...")
+    print(f"\n[Generator] Creating sample test road image: {img_path}...")
     generate_synthetic_road_image(img_path, width=640, height=360)
 
-    print(f"[Generator] Creating synthetic traffic video (120 frames): {vid_path}...")
+    print(f"[Generator] Creating sample traffic video (120 frames): {vid_path}...")
     generate_synthetic_traffic_video(vid_path, num_frames=120, fps=30, width=640, height=360)
 
-    print(f"[Generator] Creating synthetic binocular stereo pair: {left_path}, {right_path}...")
+    print(f"[Generator] Creating sample stereo pair: {left_path}, {right_path}...")
     generate_synthetic_stereo_pair(left_path, right_path, width=640, height=360)
 
-    print("\n[Generator] All synthetic test data successfully generated in data/!")
+    print("\n[Generator] Sample test data generated in data/!")
     print("Ready to run:")
-    print("  python main.py --mode image --input data/sample_road.jpg")
+    print("  python main.py --mode image --input data/sample_image.jpg")
     print("  python main.py --mode video --input data/sample_traffic.mp4")
-    print("  python main.py --mode stereo --left data/left_stereo.jpg --right data/right_stereo.jpg\n")
+    print("  python main.py --mode stereo --left data/left.jpg --right data/right.jpg\n")
     return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Builds the comprehensive CLI parser."""
+    """Builds the command-line argument parser."""
     parser = argparse.ArgumentParser(
         prog="VisionTrack",
-        description="VisionTrack: Computer Vision-Based Road Scene Analysis and Motion Tracking System",
-        epilog="Academic Computer Vision Project covering Modules 1-4 of the Computer Vision Syllabus."
+        description="VisionTrack: Road Scene Analysis and Motion Tracking System",
+        epilog="Standalone Computer Vision CLI application for road scene and video analysis."
     )
 
-    # Core Execution Mode
+    # Core Options
     parser.add_argument("--mode", type=str, choices=["image", "video", "stereo", "demo"],
                         default="video", help="Operating mode: image, video, stereo, or demo.")
     parser.add_argument("--input", type=str, default=None,
                         help="Path to input image or video file.")
     parser.add_argument("--output-dir", type=str, default="outputs",
-                        help="Base output directory where timestamped experiment runs are saved.")
+                        help="Base output directory for saved results.")
 
-    # Feature Extraction & Segmentation (Module 3 & 4)
-    parser.add_argument("--features", type=str, choices=["canny", "harris", "hog", "sift", "all"],
-                        default="all", help="Feature extraction method for image mode.")
-    parser.add_argument("--segment", type=str, choices=["otsu", "adaptive", "kmeans", "region_growing", "meanshift"],
-                        default="kmeans", help="Segmentation method to showcase in image mode.")
+    # Image Pipeline Options
+    parser.add_argument("--segment", type=str, choices=["kmeans", "otsu", "adaptive", "region_growing", "meanshift"],
+                        default="kmeans", help="Segmentation method to apply in image mode.")
     parser.add_argument("--kmeans-k", type=int, default=4,
-                        help="Number of color clusters K for K-Means segmentation.")
+                        help="Number of clusters K for K-Means segmentation.")
     parser.add_argument("--canny-low", type=float, default=50.0,
-                        help="Lower hysteresis threshold for Canny edge detection.")
+                        help="Lower threshold for Canny edge detector.")
     parser.add_argument("--canny-high", type=float, default=150.0,
-                        help="Upper hysteresis threshold for Canny edge detection.")
+                        help="Upper threshold for Canny edge detector.")
+    parser.add_argument("--perspective", action="store_true",
+                        help="Enable bird's-eye view perspective transformation.")
 
-    # Video Pipeline: Detection, Background, Tracking, Flow (Module 4)
+    # Video Pipeline Options
     parser.add_argument("--detector", type=str, choices=["auto", "yolo", "hog_svm", "motion"],
-                        default="auto", help="Object detection backend (auto, yolo, hog_svm, or classical motion).")
+                        default="auto", help="Detection backend: 'auto', 'yolo', 'hog_svm', or 'motion'.")
     parser.add_argument("--conf-thresh", type=float, default=0.35,
-                        help="Confidence threshold for object detection.")
+                        help="Detection confidence threshold.")
     parser.add_argument("--bg-method", type=str, choices=["mog2", "knn"],
-                        default="mog2", help="Background subtraction method (MOG2 or KNN).")
+                        default="mog2", help="Background subtraction algorithm.")
     parser.add_argument("--bg-history", type=int, default=300,
-                        help="Number of frames observed by background subtractor.")
+                        help="History length for background modeling.")
     parser.add_argument("--bg-var-threshold", type=float, default=16.0,
-                        help="Variance threshold for background pixel classification.")
+                        help="Variance threshold for background model.")
     parser.add_argument("--min-area", type=float, default=350.0,
-                        help="Minimum contour pixel area for valid moving objects.")
+                        help="Minimum contour area for detected moving objects.")
     parser.add_argument("--max-disappeared", type=int, default=15,
-                        help="Maximum frames an object can be lost before deregistering.")
+                        help="Maximum frames an object can be lost before track termination.")
     parser.add_argument("--max-distance", type=float, default=85.0,
                         help="Maximum centroid distance in pixels for tracking association.")
     parser.add_argument("--optical-flow", type=str, choices=["sparse", "dense", "none"],
-                        default="sparse", help="Optical flow motion analysis method (sparse LK or dense Farneback).")
+                        default="sparse", help="Optical flow method: 'sparse' (Lucas-Kanade) or 'dense' (Farneback).")
 
-    # Geometry & Perspective (Module 1 & 2)
-    parser.add_argument("--perspective", action="store_true",
-                        help="Enable Bird's-Eye View perspective transformation in image mode.")
-
-    # Stereo Depth (Module 2)
+    # Stereo Pipeline Options
     parser.add_argument("--left", type=str, default=None,
                         help="Left image for binocular stereo depth estimation.")
     parser.add_argument("--right", type=str, default=None,
                         help="Right image for binocular stereo depth estimation.")
     parser.add_argument("--stereo-method", type=str, choices=["sgbm", "bm"],
-                        default="sgbm", help="Stereo matching algorithm (SGBM or BM).")
+                        default="sgbm", help="Stereo matcher algorithm ('sgbm' or 'bm').")
     parser.add_argument("--num-disparities", type=int, default=64,
-                        help="Disparity search range for stereo matching (multiple of 16).")
+                        help="Disparity search range (multiple of 16).")
     parser.add_argument("--stereo-block-size", type=int, default=9,
-                        help="Window block size for stereo correlation matching (odd integer).")
+                        help="Matched block size (odd integer).")
 
     # Performance & Diagnostics
     parser.add_argument("--frame-skip", type=int, default=1,
-                        help="Process every Nth frame (e.g. 2 for 2x faster CPU throughput).")
+                        help="Process every Nth frame (e.g. 2 for 2x faster execution).")
     parser.add_argument("--max-frames", type=int, default=-1,
-                        help="Maximum number of frames to process (-1 for all).")
+                        help="Maximum frames to process (-1 for all).")
     parser.add_argument("--resize", type=int, default=None,
-                        help="Optional frame width to resize input to (preserves aspect ratio).")
+                        help="Optional target width to resize frames to.")
     parser.add_argument("--save-video", action="store_true", default=True,
-                        help="Save processed output videos to disk.")
+                        help="Save output video files.")
     parser.add_argument("--no-save-video", action="store_false", dest="save_video",
-                        help="Do not write output video files (faster processing).")
+                        help="Do not save output video files.")
     parser.add_argument("--generate-samples", action="store_true",
-                        help="Generate synthetic road image, traffic video, and stereo pairs in data/.")
+                        help="Generate small sample test media in data/.")
 
     return parser
 
@@ -594,7 +500,6 @@ def main() -> int:
     """CLI entrypoint."""
     parser = build_parser()
 
-    # Handle --help or empty args gracefully
     if len(sys.argv) == 1:
         parser.print_help(sys.stderr)
         return 0
@@ -605,19 +510,18 @@ def main() -> int:
         return generate_samples_command()
 
     if args.mode == "demo":
-        # Generate samples if missing, then run image and video demos
-        data_road = os.path.join("data", "sample_road.jpg")
+        data_image = os.path.join("data", "sample_image.jpg")
         data_traffic = os.path.join("data", "sample_traffic.mp4")
-        if not os.path.isfile(data_road) or not os.path.isfile(data_traffic):
+        if not os.path.isfile(data_image) or not os.path.isfile(data_traffic):
             generate_samples_command()
 
-        print("\n[VisionTrack Demo] Running Image Pipeline Demo...")
-        args.input = data_road
+        print("\n[VisionTrack Demo] Running Image Analysis...")
+        args.input = data_image
         args.mode = "image"
         args.perspective = True
         run_image_pipeline(args)
 
-        print("\n[VisionTrack Demo] Running Video Pipeline Demo...")
+        print("\n[VisionTrack Demo] Running Video Analysis...")
         args.input = data_traffic
         args.mode = "video"
         args.max_frames = 60

@@ -1,9 +1,5 @@
-"""Module: frequency.py
-Computer Vision Syllabus Mapping:
-- Module 1: Digital Image Formation and Low Level Processing (Fourier Transform,
-  Frequency Domain Filtering, Convolution Theorem).
+"""Frequency-domain 2D Fourier analysis and filtering.
 
-Description:
 Implements 2D Discrete Fourier Transform (DFT), magnitude and phase spectrum extraction,
 ideal/Gaussian/Butterworth low-pass and high-pass filtering in the frequency domain,
 and spatial reconstruction via the Inverse Discrete Fourier Transform (IDFT).

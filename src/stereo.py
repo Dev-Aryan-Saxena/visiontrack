@@ -1,12 +1,8 @@
-"""Module: stereo.py
-Computer Vision Syllabus Mapping:
-- Module 2: Depth Estimation And Multi-Camera Views (Binocular Stereopsis,
-  Epipolar Geometry, Stereo Matching, Disparity Computation).
+"""Stereo vision and disparity depth estimation.
 
-Description:
-Implements classical binocular stereoscopic depth estimation:
+Implements binocular stereoscopic depth estimation:
 1. Block Matching (StereoBM) for fast intensity-correlation matching.
-2. Semi-Global Block Matching (StereoSGBM) with 1D dynamic programming path constraints.
+2. Semi-Global Block Matching (StereoSGBM) with dynamic programming path constraints.
 3. Disparity normalization, invalid pixel masking, and false-color depth map visualization.
 """
 
@@ -69,8 +65,8 @@ class StereoDepthEstimator:
            Disparity d = x_left - x_right.
            Triangulation: Depth Z = (f * B) / d, where f is focal length, B is baseline distance.
            Objects closer to the stereo camera have larger disparities; distant background has small disparities.
-           Academic Disclaimer: Without calibrated camera intrinsics (f) and extrinsics baseline (B),
-           the output represents qualitative inverse relative depth, not metric meters.
+           Note: Without calibrated camera intrinsics (f) and baseline (B),
+           the output represents relative disparity/depth, not physical meters.
         """
         # Convert to grayscale if needed
         left_gray = cv2.cvtColor(left_img, cv2.COLOR_BGR2GRAY) if len(left_img.shape) == 3 else left_img
@@ -112,7 +108,7 @@ class StereoDepthEstimator:
             "max_disparity": round(max_disp, 2),
             "mean_disparity": round(mean_disp, 2),
             "valid_pixel_ratio": round(float(np.sum(valid_mask)) / raw_disp.size, 4),
-            "academic_note": "Uncalibrated relative disparity. True metric depth requires intrinsic matrix K and baseline B."
+            "note": "Relative disparity. Metric distance calculation requires camera calibration."
         }
 
         return norm_disp, depth_colormap, metrics

@@ -1,12 +1,8 @@
-"""Module: optical_flow.py
-Computer Vision Syllabus Mapping:
-- Module 4: Pattern Analysis and Motion Analysis (Optical Flow, KLT Feature Tracking,
-  Dense Farneback Flow, Motion Parameter Estimation).
+"""Optical flow motion field estimation.
 
-Description:
 Implements both sparse feature-based and dense differential optical flow algorithms:
 1. Sparse Lucas-Kanade Optical Flow (KLT) with Shi-Tomasi corner initialization.
-2. Dense Gunnar Farneback Optical Flow with HSV color-wheel direction/magnitude mapping.
+2. Dense Gunnar Farneback Optical Flow with HSV color-wheel direction and magnitude mapping.
 3. Frame-to-frame motion vector field calculation and quantitative mean magnitude estimation.
 """
 

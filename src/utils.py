@@ -1,16 +1,11 @@
-"""Module: utils.py
-Computer Vision Syllabus Mapping:
-- General Utilities, Synthetic Benchmark Generation, Video I/O,
-  Quantitative Evaluation, Headless Data Serialization (CSV/JSON).
+"""System and data utilities for VisionTrack.
 
-Description:
-Provides essential system utilities:
-1. Timestamped output directory management.
-2. Headless video reader/writer wrappers with multi-codec fallbacks.
-3. Built-in synthetic test data generator (road images, traffic video, stereo pairs)
-   ensuring 100% self-contained reproducibility.
-4. Annotated visualization HUD overlays (bounding boxes, track IDs, velocity vectors).
-5. Machine-readable tabular CSV and structured JSON exporters.
+Provides essential utilities:
+1. Timestamped run directory management.
+2. Headless video reader and writer wrappers.
+3. Synthetic test media generation (road scene image, traffic video, stereo pair).
+4. Annotated visualization overlays (bounding boxes, track IDs, motion trails).
+5. Tabular CSV and structured JSON exporters.
 """
 
 from typing import Tuple, List, Dict, Any, Optional
@@ -23,9 +18,9 @@ import numpy as np
 
 
 def create_experiment_dir(base_output_dir: str = "outputs", mode: str = "video") -> str:
-    """Creates a unique timestamped experiment directory to prevent overwriting prior runs."""
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    exp_dir = os.path.join(base_output_dir, mode, f"exp_{timestamp}")
+    """Creates a unique timestamped run directory."""
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    exp_dir = os.path.join(base_output_dir, mode, timestamp)
     os.makedirs(exp_dir, exist_ok=True)
     return exp_dir
 
@@ -50,7 +45,7 @@ def draw_annotated_frame(frame: np.ndarray, tracked_objects: List[Any],
                          frame_idx: int, total_frames: int,
                          avg_motion_speed: float,
                          optical_flow_mag: float) -> np.ndarray:
-    """Draws professional academic bounding boxes, IDs, trajectories, and HUD metrics."""
+    """Draws bounding boxes, IDs, trajectories, and HUD metrics on frame."""
     vis = frame.copy()
     h, w = vis.shape[:2]
 
@@ -93,21 +88,21 @@ def draw_annotated_frame(frame: np.ndarray, tracked_objects: List[Any],
         cv2.putText(vis, label, (x1 + 3, top_y - 4), cv2.FONT_HERSHEY_SIMPLEX,
                     0.45, (0, 0, 0), 1, cv2.LINE_AA)
 
-    # 3. Academic HUD Overlay Header
+    # 3. HUD Overlay Header
     hud_overlay = vis.copy()
-    cv2.rectangle(hud_overlay, (10, 10), (340, 110), (20, 20, 20), -1)
+    cv2.rectangle(hud_overlay, (10, 10), (330, 110), (20, 20, 20), -1)
     cv2.addWeighted(hud_overlay, 0.75, vis, 0.25, 0, vis)
-    cv2.rectangle(vis, (10, 10), (340, 110), (100, 100, 100), 1)
+    cv2.rectangle(vis, (10, 10), (330, 110), (100, 100, 100), 1)
 
-    cv2.putText(vis, "VisionTrack Scene Analysis", (20, 30),
+    cv2.putText(vis, "VisionTrack Motion Analysis", (20, 30),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 255), 2, cv2.LINE_AA)
     cv2.putText(vis, f"Frame: {frame_idx}/{total_frames if total_frames > 0 else 'N/A'}",
                 (20, 52), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (220, 220, 220), 1)
-    cv2.putText(vis, f"Tracked Entities: {len(tracked_objects)}", (20, 70),
+    cv2.putText(vis, f"Tracked: {len(tracked_objects)}", (20, 70),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.45, (220, 220, 220), 1)
-    cv2.putText(vis, f"Mean Motion Rate: {avg_motion_speed:.2f} px/frame", (20, 88),
+    cv2.putText(vis, f"Motion: {avg_motion_speed:.2f} px/frame", (20, 88),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 120), 1)
-    cv2.putText(vis, f"Optical Flow Mag: {optical_flow_mag:.2f}", (20, 104),
+    cv2.putText(vis, f"Optical Flow: {optical_flow_mag:.2f} px/frame", (20, 104),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.45, (100, 200, 255), 1)
 
     return vis

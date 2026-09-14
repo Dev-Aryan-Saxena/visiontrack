@@ -1,9 +1,5 @@
-"""Module: segmentation.py
-Computer Vision Syllabus Mapping:
-- Module 3 & Module 4: Image Segmentation (Thresholding, Region Growing,
-  Mean-Shift, Pattern Clustering - K-Means).
+"""Image segmentation algorithms.
 
-Description:
 Implements classical image segmentation algorithms:
 1. Threshold-based segmentation (Otsu's optimal bimodal thresholding and adaptive Gaussian).
 2. K-Means color-clustering segmentation (unsupervised feature-space partitioning).

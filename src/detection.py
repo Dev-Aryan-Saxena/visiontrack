@@ -1,14 +1,9 @@
-"""Module: detection.py
-Computer Vision Syllabus Mapping:
-- Module 3: Feature Extraction And Image Segmentation (HOG, Object detection).
-- Module 4: Pattern Analysis And Motion Analysis (Classification, Classifiers, Motion-based Detection).
+"""Road-scene object detection engines.
 
-Description:
 Implements road-scene object detection supporting multiple backends:
-1. 'classical' / 'motion': Background-subtraction + morphological contour analysis (Zero downloads, 100% offline).
-2. 'hog_svm': OpenCV built-in HOG + Linear SVM detector for pedestrians (Module 3 & 4).
-3. 'yolo': Ultralytics YOLOv8n lightweight pretrained detector (CPU-optimized for person, car, motorcycle, bus, truck).
-4. 'opencv_dnn': OpenCV deep neural network forward pass.
+1. 'auto' / 'yolo': Ultralytics YOLOv8 lightweight detector (CPU-optimized for person, car, motorcycle, bus, truck).
+2. 'hog_svm': Built-in HOG + Linear SVM detector for pedestrians.
+3. 'motion': Background-subtraction and morphological moving-blob contour analysis.
 """
 
 from typing import List, Tuple, Dict, Any, Optional
@@ -163,7 +158,7 @@ class ObjectDetector:
         return detections
 
     def _detect_hog_svm(self, frame: np.ndarray) -> List[Detection]:
-        """Inference with classical HOG + Linear SVM detector (Module 3 & 4)."""
+        """Inference with HOG + Linear SVM detector."""
         detections: List[Detection] = []
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) if len(frame.shape) == 3 else frame
 

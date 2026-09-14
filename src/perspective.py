@@ -1,10 +1,5 @@
-"""Module: perspective.py
-Computer Vision Syllabus Mapping:
-- Module 1: Transformations (Orthogonal, Euclidean, Affine, Projective).
-- Module 2: Depth Estimation and Multi-Camera Views (Perspective, Homography,
-  Direct Linear Transformation - DLT, Rectification).
+"""Perspective transformation and bird's-eye view mapping.
 
-Description:
 Implements 2D projective transformation and Inverse Perspective Mapping (IPM) to rectify
 trapezoidal perspective distortions of road camera scenes into top-down bird's-eye views (BEV).
 """
